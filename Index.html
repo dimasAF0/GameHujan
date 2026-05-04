@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Game Hujan Bintang</title>
+    <style>
+        /* === CSS: Kosmetik & Tampilan === */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0f2027;
+            background-image: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            color: white;
+        }
+
+        #game-board {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        #score-board {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        #player {
+            position: absolute;
+            bottom: 20px;
+            left: 175px;
+            width: 50px;
+            height: 50px;
+            font-size: 40px;
+            text-align: center;
+            line-height: 50px;
+            transition: left 0.1s ease-out;
+            z-index: 5;
+        }
+
+        .item {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            font-size: 30px;
+            text-align: center;
+            line-height: 40px;
+            z-index: 3;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            text-align: center;
+        }
+
+        #overlay h1 {
+            color: #f1c40f;
+            text-shadow: 0 0 10px #f39c12;
+            margin-bottom: 5px;
+        }
+
+        #overlay button {
+            margin-top: 20px;
+            padding: 12px 25px;
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            background: #27ae60;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+
+        #overlay button:hover {
+            transform: scale(1.05);
+            background: #2ecc71;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-board">
+        <div id="score-board">Skor: <span id="score">0</span></div>
+        <div id="player">🧺</div>
+        
+        <div id="overlay">
+            <h1 id="title">Hujan Bintang</h1>
+            <p id="subtitle">Geser mouse/sentuh layar untuk menangkap ⭐<br>Hindari ☄️!</p>
+            <button id="start-btn">Mulai Main</button>
+        </div>
+    </div>
+
+    <script>
+        // === JavaScript: Otak & Logika Game ===
+        const board = document.getElementById('game-board');
+        const player = document.getElementById('player');
+        const scoreDisplay = document.getElementById('score');
+        const overlay = document.getElementById('overlay');
+        const startBtn = document.getElementById('start-btn');
+        const titleText = document.getElementById('title');
+        const subtitleText = document.getElementById('subtitle');
+
+        let score = 0;
+        let isGameRunning = false;
+        let gameLoopId;
+        let spawnId;
+        let items = []; 
+        let playerX = 175; 
+
+        function movePlayer(e) {
+            if (!isGameRunning) return;
+            
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let boardRect = board.getBoundingClientRect();
+            let newX = clientX - boardRect.left - 25; 
+
+            if (newX < 0) newX = 0;
+            if (newX > 350) newX = 350; 
+
+            playerX = newX;
+            player.style.left = playerX + 'px';
+        }
+
+        board.addEventListener('mousemove', movePlayer);
+        board.addEventListener('touchmove', movePlayer);
+
+        function spawnItem() {
+            if (!isGameRunning) return;
+
+            const item = document.createElement('div');
+            item.classList.add('item');
+            
+            const isMeteor = Math.random() < 0.2; 
+            item.innerHTML = isMeteor ? '☄️' : '⭐';
+            item.dataset.type = isMeteor ? 'meteor' : 'star';
+
+            let randomX = Math.floor(Math.random() * 360); 
+            let itemY = -50; 
+
+            item.style.left = randomX + 'px';
+            item.style.top = itemY + 'px';
+            board.appendChild(item);
+
+            items.push({ element: item, x: randomX, y: itemY, type: item.dataset.type });
+        }
+
+        function gameLoop() {
+            if (!isGameRunning) return;
+
+            // === PERUBAHAN KECEPATAN ADA DI SINI ===
+            let fallSpeed;
+            if (score <= 150) {
+                fallSpeed = 2.5; // 1. Perlahan
+            } else if (score <= 250) {
+                fallSpeed = 4.5; // 2. Sedang
+            } else if (score <= 360) {
+                fallSpeed = 7.5; // 3. Cepat
+            } else {
+                fallSpeed = 11;  // 4. Ultra cepat (> 360)
+            }
+
+            for (let i = 0; i < items.length; i++) {
+                let currentItem = items[i];
+                currentItem.y += fallSpeed; 
+                currentItem.element.style.top = currentItem.y + 'px';
+
+                let hitX = (currentItem.x > playerX - 30) && (currentItem.x < playerX + 40);
+                let hitY = (currentItem.y > 530) && (currentItem.y < 580); 
+
+                if (hitX && hitY) {
+                    if (currentItem.type === 'star') {
+                        score += 10;
+                        scoreDisplay.innerText = score;
+                        currentItem.element.remove();
+                        items.splice(i, 1);
+                        i--;
+                    } else if (currentItem.type === 'meteor') {
+                        gameOver();
+                        return;
+                    }
+                } 
+                else if (currentItem.y > 600) {
+                    currentItem.element.remove();
+                    items.splice(i, 1);
+                    i--;
+                }
+            }
+
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            score = 0;
+            scoreDisplay.innerText = score;
+            isGameRunning = true;
+            overlay.style.display = 'none'; 
+            
+            items.forEach(item => item.element.remove());
+            items = [];
+
+            gameLoop();
+            
+            // Interval kemunculan item tetap statis di 600ms
+            spawnId = setInterval(spawnItem, 600);
+        }
+
+        function gameOver() {
+            isGameRunning = false;
+            cancelAnimationFrame(gameLoopId);
+            clearInterval(spawnId);
+
+            titleText.innerText = "Game Over!";
+            titleText.style.color = "#e74c3c";
+            subtitleText.innerHTML = `Keranjangmu hancur terkena meteor.<br>Skor Akhir: <b>${score}</b>`;
+            startBtn.innerText = "Coba Lagi";
+            overlay.style.display = 'flex'; 
+        }
+
+        startBtn.addEventListener('click', startGame);
+    </script>
+</body>
+</html>
